@@ -4,12 +4,17 @@ import { useProjects } from '../context/ProjectContext';
 import { sendContactForm } from '../utils/email';
 
 const ContactPage = () => {
-  const { addInquiry } = useProjects();
+  const { addInquiry, addProjectRequest } = useProjects();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [projectType, setProjectType] = useState('');
   const [budget, setBudget] = useState('');
+  const [projectTitle, setProjectTitle] = useState('');
   const [message, setMessage] = useState('');
+  const [requirements, setRequirements] = useState('');
+  const [timeline, setTimeline] = useState('');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -25,10 +30,10 @@ const ContactPage = () => {
         from_email: email,
         project_type: projectType,
         budget,
-        message
+        message: `${message}\n\nProject Title: ${projectTitle}\nRequirements: ${requirements}\nTimeline: ${timeline}\nPriority: ${priority}`
       });
       
-      // Add the inquiry to the context
+      // Add the inquiry to the context (legacy support)
       addInquiry({
         name,
         email,
@@ -36,15 +41,40 @@ const ContactPage = () => {
         budget,
         message
       });
+
+      // Add as a project request (new system)
+      if (projectTitle.trim()) {
+        await addProjectRequest({
+          customer_name: name,
+          customer_email: email,
+          customer_phone: phone,
+          project_title: projectTitle,
+          project_type: projectType,
+          budget_range: budget,
+          description: message,
+          requirements: requirements || undefined,
+          timeline: timeline || undefined,
+          priority,
+          admin_notes: '',
+          estimated_price: undefined,
+          estimated_timeline: undefined,
+          assigned_to: undefined
+        });
+      }
       
       setShowSuccess(true);
       
       // Reset form
       setName('');
       setEmail('');
+      setPhone('');
       setProjectType('');
       setBudget('');
+      setProjectTitle('');
       setMessage('');
+      setRequirements('');
+      setTimeline('');
+      setPriority('medium');
       
       // Hide success message after a delay
       setTimeout(() => {
@@ -52,6 +82,7 @@ const ContactPage = () => {
       }, 5000);
     } catch (error) {
       console.error('Failed to send inquiry:', error);
+      alert('Failed to send your request. Please try again or contact us directly.');
     } finally {
       setIsSubmitting(false);
     }
@@ -133,14 +164,14 @@ const ContactPage = () => {
               
               {/* Contact Form */}
               <div className="col-span-2 p-8">
-                <h2 className="text-xl font-semibold text-slate-900 mb-6">Send a Message</h2>
+                <h2 className="text-xl font-semibold text-slate-900 mb-6">Send a Project Request</h2>
                 
                 {showSuccess ? (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-green-800 mb-2">Message Sent Successfully!</h3>
+                    <h3 className="text-lg font-medium text-green-800 mb-2">Request Sent Successfully!</h3>
                     <p className="text-green-600">
-                      Thank you for reaching out. I'll get back to you as soon as possible.
+                      Thank you for reaching out. Your project request has been submitted and I'll get back to you as soon as possible.
                     </p>
                   </div>
                 ) : (
@@ -148,7 +179,7 @@ const ContactPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label htmlFor="contact-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Your Name
+                          Your Name *
                         </label>
                         <input
                           type="text"
@@ -163,7 +194,7 @@ const ContactPage = () => {
                       
                       <div>
                         <label htmlFor="contact-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Email Address
+                          Email Address *
                         </label>
                         <input
                           type="email"
@@ -176,11 +207,25 @@ const ContactPage = () => {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
+                        <label htmlFor="contact-phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          id="contact-phone"
+                          name="contact-phone"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
+                        />
+                      </div>
+
+                      <div>
                         <label htmlFor="project-type" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Project Type
+                          Project Type *
                         </label>
                         <select
                           id="project-type"
@@ -198,10 +243,28 @@ const ContactPage = () => {
                           <option value="Other">Other</option>
                         </select>
                       </div>
-                      
+                    </div>
+
+                    <div>
+                      <label htmlFor="project-title" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Project Title *
+                      </label>
+                      <input
+                        type="text"
+                        id="project-title"
+                        name="project-title"
+                        value={projectTitle}
+                        onChange={(e) => setProjectTitle(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
+                        placeholder="Give your project a descriptive title"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label htmlFor="budget-range" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Budget Range
+                          Budget Range *
                         </label>
                         <select
                           id="budget-range"
@@ -219,22 +282,70 @@ const ContactPage = () => {
                           <option value="₹25,000+">₹25,000+</option>
                         </select>
                       </div>
+
+                      <div>
+                        <label htmlFor="priority" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Priority Level
+                        </label>
+                        <select
+                          id="priority"
+                          name="priority"
+                          value={priority}
+                          onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high' | 'urgent')}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                          <option value="urgent">Urgent</option>
+                        </select>
+                      </div>
                     </div>
                     
                     <div>
-                      <label htmlFor="project-details" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        Project Details
+                      <label htmlFor="project-description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Project Description *
                       </label>
                       <textarea
-                        id="project-details"
-                        name="project-details"
+                        id="project-description"
+                        name="project-description"
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
-                        rows={5}
+                        rows={4}
                         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
-                        placeholder="Please describe your project requirements, timeline, and any specific details..."
+                        placeholder="Describe your project goals, target audience, and key features..."
                         required
                       ></textarea>
+                    </div>
+
+                    <div>
+                      <label htmlFor="requirements" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Technical Requirements
+                      </label>
+                      <textarea
+                        id="requirements"
+                        name="requirements"
+                        value={requirements}
+                        onChange={(e) => setRequirements(e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
+                        placeholder="Specific technologies, integrations, or technical requirements..."
+                      ></textarea>
+                    </div>
+
+                    <div>
+                      <label htmlFor="timeline" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Expected Timeline
+                      </label>
+                      <input
+                        type="text"
+                        id="timeline"
+                        name="timeline"
+                        value={timeline}
+                        onChange={(e) => setTimeline(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
+                        placeholder="e.g., 2-3 weeks, 1 month, ASAP"
+                      />
                     </div>
                     
                     <button 
@@ -254,7 +365,7 @@ const ContactPage = () => {
                         </>
                       ) : (
                         <>
-                          Send Message
+                          Send Project Request
                           <SendHorizonal className="ml-2 h-5 w-5" />
                         </>
                       )}

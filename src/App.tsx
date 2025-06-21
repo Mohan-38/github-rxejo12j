@@ -10,6 +10,7 @@ import ContactPage from './pages/ContactPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminProjectsPage from './pages/admin/AdminProjectsPage';
+import AdminProjectRequestsPage from './pages/admin/AdminProjectRequestsPage';
 import AdminInquiriesPage from './pages/admin/AdminInquiriesPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminDocumentDeliveryPage from './pages/admin/AdminDocumentDeliveryPage';
@@ -44,6 +45,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <AdminDashboardPage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/admin/project-requests" 
+                    element={
+                      <ProtectedRoute>
+                        <AdminProjectRequestsPage />
                       </ProtectedRoute>
                     } 
                   />

@@ -11,7 +11,8 @@ import {
   X,
   Code,
   Send,
-  FileCheck
+  FileCheck,
+  ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -30,6 +31,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   
   const navigation = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+    { name: 'Project Requests', path: '/admin/project-requests', icon: ClipboardList },
     { name: 'Projects', path: '/admin/projects', icon: Briefcase },
     { name: 'Inquiries', path: '/admin/inquiries', icon: MessageSquare },
     { name: 'Orders', path: '/admin/orders', icon: ShoppingBag },
