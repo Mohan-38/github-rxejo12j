@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Project, Inquiry, Order, ProjectDocument } from '../types';
+import { Project, Inquiry, Order, ProjectDocument, ProjectRequest, ProjectRequestStatusHistory } from '../types';
 import { sendDocumentDelivery, sendSecureDocumentDelivery, generateDownloadInstructions, sendNoDocumentsNotification } from '../utils/email';
 import { generateSecureDownloadTokens } from '../utils/secureDownloads';
 
@@ -24,6 +24,13 @@ type ProjectContextType = {
   getDocumentsByReviewStage: (projectId: string, reviewStage: string) => ProjectDocument[];
   sendProjectDocuments: (orderId: string, customerEmail: string, customerName: string) => Promise<void>;
   sendSecureProjectDocuments: (orderId: string, customerEmail: string, customerName: string, useSecure?: boolean) => Promise<void>;
+  // New Project Requests functionality
+  projectRequests: ProjectRequest[];
+  addProjectRequest: (request: Omit<ProjectRequest, 'id' | 'created_at' | 'updated_at' | 'status' | 'source'>) => Promise<void>;
+  updateProjectRequestStatus: (id: string, status: string, adminEmail?: string, notes?: string) => Promise<void>;
+  convertRequestToProject: (requestId: string, adminEmail?: string) => Promise<string>;
+  getRequestStatusHistory: (requestId: string) => Promise<ProjectRequestStatusHistory[]>;
+  deleteProjectRequest: (id: string) => Promise<void>;
 };
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -85,6 +92,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [projectDocuments, setProjectDocuments] = useState<ProjectDocument[]>([]);
+  const [projectRequests, setProjectRequests] = useState<ProjectRequest[]>([]);
 
   // Load projects from Supabase on mount
   useEffect(() => {
@@ -220,6 +228,37 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return () => {
       documentsSubscription.unsubscribe();
+    };
+  }, []);
+
+  // Load project requests from Supabase
+  useEffect(() => {
+    const fetchProjectRequests = async () => {
+      const { data, error } = await supabase
+        .from('project_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching project requests:', error);
+        return;
+      }
+
+      setProjectRequests(data || []);
+    };
+
+    fetchProjectRequests();
+
+    // Subscribe to changes
+    const requestsSubscription = supabase
+      .channel('project_requests_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_requests' }, (payload) => {
+        fetchProjectRequests();
+      })
+      .subscribe();
+
+    return () => {
+      requestsSubscription.unsubscribe();
     };
   }, []);
 
@@ -619,6 +658,107 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  // Project Requests functions
+  const addProjectRequest = async (request: Omit<ProjectRequest, 'id' | 'created_at' | 'updated_at' | 'status' | 'source'>) => {
+    const { data, error } = await supabase
+      .from('project_requests')
+      .insert([{
+        ...request,
+        status: 'pending',
+        source: 'contact_form'
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding project request:', error);
+      throw error;
+    }
+
+    setProjectRequests(prevRequests => [...prevRequests, data]);
+  };
+
+  const updateProjectRequestStatus = async (id: string, status: string, adminEmail?: string, notes?: string) => {
+    const { error } = await supabase.rpc('update_request_status', {
+      request_id_param: id,
+      new_status_param: status,
+      changed_by_param: adminEmail,
+      notes_param: notes
+    });
+
+    if (error) {
+      console.error('Error updating project request status:', error);
+      throw error;
+    }
+
+    // Refresh the requests list
+    const { data } = await supabase
+      .from('project_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      setProjectRequests(data);
+    }
+  };
+
+  const convertRequestToProject = async (requestId: string, adminEmail?: string): Promise<string> => {
+    const { data, error } = await supabase.rpc('convert_request_to_project', {
+      request_id_param: requestId,
+      admin_email: adminEmail
+    });
+
+    if (error) {
+      console.error('Error converting request to project:', error);
+      throw error;
+    }
+
+    // Refresh both requests and projects
+    const [requestsResult, projectsResult] = await Promise.all([
+      supabase.from('project_requests').select('*').order('created_at', { ascending: false }),
+      supabase.from('projects').select('*').order('created_at', { ascending: false })
+    ]);
+
+    if (requestsResult.data) {
+      setProjectRequests(requestsResult.data);
+    }
+
+    if (projectsResult.data) {
+      setProjects(projectsResult.data);
+    }
+
+    return data; // Returns the new project ID
+  };
+
+  const getRequestStatusHistory = async (requestId: string): Promise<ProjectRequestStatusHistory[]> => {
+    const { data, error } = await supabase
+      .from('project_request_status_history')
+      .select('*')
+      .eq('request_id', requestId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching request status history:', error);
+      return [];
+    }
+
+    return data || [];
+  };
+
+  const deleteProjectRequest = async (id: string) => {
+    const { error } = await supabase
+      .from('project_requests')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting project request:', error);
+      return;
+    }
+
+    setProjectRequests(prevRequests => prevRequests.filter(request => request.id !== id));
+  };
+
   return (
     <ProjectContext.Provider
       value={{
@@ -641,6 +781,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         getDocumentsByReviewStage,
         sendProjectDocuments,
         sendSecureProjectDocuments,
+        // New Project Requests functionality
+        projectRequests,
+        addProjectRequest,
+        updateProjectRequestStatus,
+        convertRequestToProject,
+        getRequestStatusHistory,
+        deleteProjectRequest,
       }}
     >
       {children}

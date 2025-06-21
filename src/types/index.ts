@@ -63,3 +63,50 @@ export interface ReviewStage {
   description: string;
   documents: ProjectDocument[];
 }
+
+// New types for Project Requests System
+export interface ProjectRequest {
+  id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone?: string;
+  project_title: string;
+  project_type: string;
+  budget_range: string;
+  description: string;
+  requirements?: string;
+  timeline?: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'pending' | 'reviewing' | 'approved' | 'rejected' | 'converted';
+  admin_notes?: string;
+  estimated_price?: number;
+  estimated_timeline?: string;
+  assigned_to?: string;
+  source: string;
+  created_at: string;
+  updated_at: string;
+  reviewed_at?: string;
+  converted_at?: string;
+  converted_project_id?: string;
+}
+
+export interface ProjectRequestStatusHistory {
+  id: string;
+  request_id: string;
+  old_status?: string;
+  new_status: string;
+  changed_by?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface ProjectRequestStats {
+  total: number;
+  pending: number;
+  reviewing: number;
+  approved: number;
+  rejected: number;
+  converted: number;
+  thisMonth: number;
+  avgResponseTime: number; // in hours
+}
