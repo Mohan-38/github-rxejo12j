@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { 
   Clock, 
   CheckCircle, 
@@ -19,15 +19,12 @@ import {
   Plus,
   RefreshCw,
   Star,
-  TrendingUp,
-  Edit,
-  Save,
-  X
+  TrendingUp
 } from 'lucide-react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { useProjects } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
-import { ProjectRequest, ProjectRequestStatusHistory, Project } from '../../types';
+import { ProjectRequest, ProjectRequestStatusHistory } from '../../types';
 
 const AdminProjectRequestsPage = () => {
   const { 
@@ -35,8 +32,7 @@ const AdminProjectRequestsPage = () => {
     updateProjectRequestStatus, 
     convertRequestToProject, 
     getRequestStatusHistory,
-    deleteProjectRequest,
-    addProject
+    deleteProjectRequest 
   } = useProjects();
   const { user } = useAuth();
   
@@ -46,25 +42,10 @@ const AdminProjectRequestsPage = () => {
   const [selectedRequest, setSelectedRequest] = useState<ProjectRequest | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showStatusHistory, setShowStatusHistory] = useState(false);
-  const [showConversionModal, setShowConversionModal] = useState(false);
   const [statusHistory, setStatusHistory] = useState<ProjectRequestStatusHistory[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
-
-  // Project conversion form state
-  const [projectFormData, setProjectFormData] = useState<Omit<Project, 'id'>>({
-    title: '',
-    description: '',
-    category: 'IoT',
-    price: 0,
-    image: 'https://images.pexels.com/photos/3183153/pexels-photo-3183153.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-    imageUpload: null,
-    features: [''],
-    technical_details: '',
-    featured: false,
-    updated_at: new Date().toISOString()
-  });
 
   // Filter requests
   const filteredRequests = projectRequests.filter(request => {
@@ -165,44 +146,18 @@ const AdminProjectRequestsPage = () => {
     }
   };
 
-  const handleConvertToProject = (request: ProjectRequest) => {
-    // Pre-fill the form with request data
-    setProjectFormData({
-      title: request.project_title,
-      description: request.description,
-      category: request.project_type,
-      price: request.estimated_price || 0,
-      image: 'https://images.pexels.com/photos/3183153/pexels-photo-3183153.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-      imageUpload: null,
-      features: request.requirements ? [request.requirements] : ['Custom development based on requirements'],
-      technical_details: request.requirements || 'Custom project based on client requirements',
-      featured: false,
-      updated_at: new Date().toISOString()
-    });
-    
-    setSelectedRequest(request);
-    setShowConversionModal(true);
-  };
-
-  const handleConfirmConversion = async () => {
-    if (!selectedRequest) return;
+  const handleConvertToProject = async (requestId: string) => {
+    if (!window.confirm('Are you sure you want to convert this request to a project? This action cannot be undone.')) {
+      return;
+    }
 
     setIsConverting(true);
     try {
-      // Create the project with the edited details
-      await addProject(projectFormData);
-      
-      // Update the request status to converted
-      await updateProjectRequestStatus(
-        selectedRequest.id, 
-        'converted', 
-        user?.email, 
-        `Converted to project: ${projectFormData.title}`
-      );
-      
-      setShowConversionModal(false);
-      setSelectedRequest(null);
-      alert('Successfully converted to project!');
+      const projectId = await convertRequestToProject(requestId, user?.email);
+      alert(`Successfully converted to project! Project ID: ${projectId}`);
+      if (selectedRequest?.id === requestId) {
+        setShowDetailsModal(false);
+      }
     } catch (error) {
       console.error('Error converting to project:', error);
       alert('Failed to convert to project. Please try again.');
@@ -241,34 +196,6 @@ const AdminProjectRequestsPage = () => {
       console.error('Error deleting request:', error);
       alert('Failed to delete request. Please try again.');
     }
-  };
-
-  // Handle feature list changes
-  const handleFeatureChange = (index: number, value: string) => {
-    const updatedFeatures = [...projectFormData.features];
-    updatedFeatures[index] = value;
-    setProjectFormData({
-      ...projectFormData,
-      features: updatedFeatures
-    });
-  };
-
-  // Add new feature input
-  const addFeature = () => {
-    setProjectFormData({
-      ...projectFormData,
-      features: [...projectFormData.features, '']
-    });
-  };
-
-  // Remove feature input
-  const removeFeature = (index: number) => {
-    const updatedFeatures = [...projectFormData.features];
-    updatedFeatures.splice(index, 1);
-    setProjectFormData({
-      ...projectFormData,
-      features: updatedFeatures
-    });
   };
 
   return (
@@ -518,16 +445,6 @@ const AdminProjectRequestsPage = () => {
                               <RefreshCw className="h-4 w-4" />
                             </button>
                             
-                            {request.status === 'approved' && (
-                              <button
-                                onClick={() => handleConvertToProject(request)}
-                                className="p-2 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900 rounded-lg transition-colors"
-                                title="Convert to project"
-                              >
-                                <ArrowRight className="h-4 w-4" />
-                              </button>
-                            )}
-                            
                             <button
                               onClick={() => handleDelete(request.id)}
                               className="p-2 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg transition-colors"
@@ -711,7 +628,7 @@ const AdminProjectRequestsPage = () => {
 
                 {selectedRequest.status === 'approved' && (
                   <button
-                    onClick={() => handleConvertToProject(selectedRequest)}
+                    onClick={() => handleConvertToProject(selectedRequest.id)}
                     disabled={isConverting}
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center"
                   >
@@ -725,205 +642,6 @@ const AdminProjectRequestsPage = () => {
                   className="px-4 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   View History
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Project Conversion Modal */}
-      {showConversionModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-200">
-                  <Edit className="h-5 w-5 inline mr-2" />
-                  Convert to Project - Review & Edit Details
-                </h3>
-                <button
-                  onClick={() => setShowConversionModal(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-                <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2">
-                  📋 Converting Request: {selectedRequest.project_title}
-                </h4>
-                <p className="text-blue-700 dark:text-blue-400 text-sm">
-                  Review and modify the project details below before creating the project. All fields are pre-filled from the customer request.
-                </p>
-              </div>
-
-              <form className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Project Title *
-                    </label>
-                    <input
-                      type="text"
-                      value={projectFormData.title}
-                      onChange={(e) => setProjectFormData({ ...projectFormData, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Category *
-                    </label>
-                    <select
-                      value={projectFormData.category}
-                      onChange={(e) => setProjectFormData({ ...projectFormData, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200"
-                      required
-                    >
-                      <option value="IoT">IoT</option>
-                      <option value="Blockchain">Blockchain</option>
-                      <option value="Web">Web Development</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Description *
-                  </label>
-                  <textarea
-                    value={projectFormData.description}
-                    onChange={(e) => setProjectFormData({ ...projectFormData, description: e.target.value })}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Price (₹) *
-                    </label>
-                    <input
-                      type="number"
-                      value={projectFormData.price}
-                      onChange={(e) => setProjectFormData({ ...projectFormData, price: parseInt(e.target.value) || 0 })}
-                      min="0"
-                      step="1"
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200"
-                      required
-                    />
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                      Customer Budget: {selectedRequest.budget_range}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Project Image URL
-                    </label>
-                    <input
-                      type="url"
-                      value={projectFormData.image}
-                      onChange={(e) => setProjectFormData({ ...projectFormData, image: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200"
-                      placeholder="https://example.com/image.jpg"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Project Features
-                  </label>
-                  
-                  {projectFormData.features.map((feature, index) => (
-                    <div key={index} className="flex mb-2">
-                      <input
-                        type="text"
-                        value={feature}
-                        onChange={(e) => handleFeatureChange(index, e.target.value)}
-                        className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200"
-                        placeholder={`Feature ${index + 1}`}
-                      />
-                      
-                      <button
-                        type="button"
-                        onClick={() => removeFeature(index)}
-                        className="ml-2 flex items-center justify-center h-10 w-10 rounded-md bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/40"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                  
-                  <button
-                    type="button"
-                    onClick={addFeature}
-                    className="inline-flex items-center px-3 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded-md bg-slate-50 text-slate-700 hover:bg-slate-100 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Feature
-                  </button>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Technical Details
-                  </label>
-                  <textarea
-                    value={projectFormData.technical_details}
-                    onChange={(e) => setProjectFormData({ ...projectFormData, technical_details: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-900 dark:text-slate-200"
-                    placeholder="Technologies used, implementation details, etc."
-                  />
-                </div>
-                
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={projectFormData.featured}
-                    onChange={(e) => setProjectFormData({ ...projectFormData, featured: e.target.checked })}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600"
-                  />
-                  <label className="ml-2 text-sm text-slate-700 dark:text-slate-300">
-                    Mark as featured project
-                  </label>
-                </div>
-              </form>
-
-              <div className="mt-8 flex justify-end space-x-3">
-                <button
-                  onClick={() => setShowConversionModal(false)}
-                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-md text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-700 dark:hover:bg-slate-600"
-                  disabled={isConverting}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmConversion}
-                  disabled={isConverting || !projectFormData.title || !projectFormData.description}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  {isConverting ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Converting...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Create Project
-                    </>
-                  )}
                 </button>
               </div>
             </div>
